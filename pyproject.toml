@@ -4,6 +4,7 @@ version = "2.0"
 description = "A web server with extra things for Mau engine."
 readme = "README.md"
 requires-python = ">=3.12"
+license = "GPL-3.0-or-later"
 dependencies = [
     "fastapi>=0.115.12",
     "loguru>=0.7.3",
@@ -14,5 +15,28 @@ dependencies = [
     "websockets>=15.0.1",
 ]
 
+[dependency-groups]
+dev = [
+    "mypy>=1.15.0",
+    "nox>=2025.2.9",
+]
+
 [tool.uv.sources]
 mau = { git = "https://github.com/miroqru/mauno" }
+
+# Ruff linter ----------------------------------------------------------
+
+[tool.ruff]
+line-length = 80
+indent-width = 4
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "D", "N", "PL", "UP", "ANN", "W", "ASYNC"]
+ignore = ["D407", "D107", "D213", "D203"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
