@@ -5,9 +5,11 @@
 
 from fastapi import FastAPI
 
+from mau_server.config import config
+
 app = FastAPI(
     # lifespan=lifespan,
-    # debug=config.debug,
+    debug=config.debug,
     title="mau:server",
     version="v2.0",
     root_path="/api",
