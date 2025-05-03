@@ -1,3 +1,22 @@
-# mau-server
+# Mau server
 
-A web server with extra things for Mau engine.
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](./LICENSE)
+
+Веб сервер для расширения функционала [Mau](https://github.com/miroqru/mauno).
+
+> Проект находится в активной разработке.
+> Узнать о всех новостях вы можете в [Salormoon](https://t.me/mili_qlaster).
+
+## Поддержка проекта
+Мы будем очень рады, если вы **поддержите развитие проекта**.
+Есть несколько способов как вы можете это сделать:
+
+- Оставить **звёздочку** в репозитории.
+- **Играть** вместе с друзьями в Uno.
+- **Участвовать в бета-тестировании** новых функций.
+- **Предлагать** свои собственные идеи.
+- Сообщать о найденных багах или даже предлагать их решение.
+- **Сделать** форк проекта.
+
+Нам бы очень хотелось создать **лучшего бота** для весёлой совместной игры с друзьями!
