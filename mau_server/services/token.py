@@ -10,7 +10,7 @@ import jwt
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-from mauserve.models import UserModel
+from mau_server.models import User
 
 bearer = HTTPBearer()
 
@@ -31,7 +31,7 @@ class SimpleTokenManager:
         self._secret_key = secret_key
         self._ttl = ttl
 
-    def new_token(self, user: UserModel) -> str:
+    def new_token(self, user: User) -> str:
         """Создаёт новый токен, привязанный к пользователю.
 
         Теперь вы сможете использовать этот токен вместо пароля.
@@ -39,7 +39,7 @@ class SimpleTokenManager:
         а также срок жизни.
 
         :param user: Данные пользователя.
-        :type user: UserModel
+        :type user: User
         :returns: новый токен для пользователя.
         :rtype: str
         """
@@ -56,7 +56,7 @@ class SimpleTokenManager:
 
     async def read_token(
         self, cred: HTTPAuthorizationCredentials = Depends(bearer)
-    ) -> UserModel:
+    ) -> User:
         """Извлекает пользователя из токена.
 
         Проверяет что введённый токен корректный, ещё живой и что
@@ -68,7 +68,7 @@ class SimpleTokenManager:
         :param cred: Данные пользователя для авторизации из заголовка.
         :type cred: HTTPAuthorizationCredentials
         :return: Пользователь, связанный с токеном.
-        :rtype: UserModel
+        :rtype: User
         """
         try:
             payload = jwt.decode(
@@ -80,7 +80,7 @@ class SimpleTokenManager:
         if payload.get("expired") < int(datetime.now().timestamp()):
             raise HTTPException(401, "Token has expired")
 
-        user = await UserModel.get_or_none(username=payload.get("username"))
+        user = await User.get_or_none(username=payload.get("username"))
         if user is None:
             raise HTTPException(401, "Invalid user id")
 

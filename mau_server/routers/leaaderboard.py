@@ -4,8 +4,8 @@ from enum import StrEnum
 
 from fastapi import APIRouter, HTTPException
 
-from mauserve.models import UserModel
-from mauserve.schemes.db import UserData
+from mau_server.models import User
+from mau_server.schemes.db import UserData
 
 router = APIRouter(prefix="/leaderboard", tags=["rating"])
 
@@ -24,10 +24,10 @@ async def get_my_leaderboard_index(
     username: str, category: CategoryEnum
 ) -> int:
     """Получает таблицу лидеров из базы данных."""
-    user = await UserModel.get_or_none(username=username)
+    user = await User.get_or_none(username=username)
     if user is None:
         raise HTTPException(404, "User not found")
-    position = (await UserModel.filter(gems__gt=user.gems).count()) + 1
+    position = (await User.filter(gems__gt=user.gems).count()) + 1
     return position
 
 
@@ -35,5 +35,5 @@ async def get_my_leaderboard_index(
 async def get_leaderboard_by_category(category: CategoryEnum) -> list[UserData]:
     """Получает таблицу лидеров из базы данных."""
     return await UserData.from_queryset(
-        UserModel.all().order_by("-" + category.name).limit(100)
+        User.all().order_by("-" + category.name).limit(100)
     )

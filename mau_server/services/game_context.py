@@ -2,12 +2,14 @@
 
 from fastapi import Depends, HTTPException
 
-from mauserve.config import sm, stm
-from mauserve.models import RoomModel, UserModel
-from mauserve.schemes.game import GameContext
+from mau_server.config import sm, stm
+from mau_server.models import Room, User
+from mau_server.schemes.game import GameContext
 
 
-async def get_context(user: UserModel = Depends(stm.read_token)) -> GameContext:
+async def game_context(
+    user: User = Depends(stm.read_token),
+) -> GameContext:
     """Получает игровой контекст пользователя.
 
     Контекст хранит в себе исчерпывающую информацию о состоянии игры.
@@ -18,17 +20,17 @@ async def get_context(user: UserModel = Depends(stm.read_token)) -> GameContext:
     как игрока.
     """
     room = (
-        await RoomModel.filter(players=user)
+        await Room.filter(players=user)
         .exclude(status="ended")
         .get_or_none()
         .prefetch_related("players")
     )
     if room is None:
-        raise HTTPException(404, "user not in room, to join room game")
+        raise HTTPException(404, "user not in room")
 
-    game = sm.games.get(str(room.id))
+    game = sm.room(str(room.id))
     if game is not None:
-        player = game.get_player(user.username)
+        player = sm.player(user.username)
     else:
         player = None
 

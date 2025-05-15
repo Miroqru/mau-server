@@ -10,36 +10,36 @@ from mau.card import CardColor, TakeCard, TakeFourCard, UnoCard
 from mau.enums import GameState
 from mau.player import BaseUser
 
-from mauserve.config import sm
-from mauserve.models import GameModel, UserModel
-from mauserve.schemes.game import (
+from mau_server.config import sm
+from mau_server.models import Game, User
+from mau_server.schemes.game import (
     ContextData,
     GameContext,
     card_schema_to_card,
     dump_context,
 )
-from mauserve.services.game_context import get_context
+from mau_server.services.game_context import game_context
 
 router = APIRouter(prefix="/game", tags=["games"])
 
 
 async def save_game(ctx: GameContext) -> None:
     """Записывает игру в базу данных."""
-    game = GameModel(
+    game = Game(
         create_time=ctx.game.game_start,
-        owner=await UserModel.get_or_none(username=ctx.game.owner.user_id),
+        owner=await User.get_or_none(username=ctx.game.owner.user_id),
         room=ctx.room,
     )
 
     for pl in ctx.game.winners:
-        winner = await UserModel.get_or_none(username=pl.user_id)
+        winner = await User.get_or_none(username=pl.user_id)
         if winner is not None:
             game.winners.add(winner)
         else:
             logger.error("Not found winner {}", pl.user_id)
 
     for pl in ctx.game.losers:
-        loser = await UserModel.get_or_none(username=pl.user_id)
+        loser = await User.get_or_none(username=pl.user_id)
         if loser is not None:
             game.losers.add(loser)
         else:
@@ -57,7 +57,7 @@ async def save_game(ctx: GameContext) -> None:
 
 @router.post("/join/")
 async def join_player_to_game(
-    ctx: GameContext = Depends(get_context),
+    ctx: GameContext = Depends(game_context),
 ) -> ContextData:
     """Добавляет активного пользователя в комнату.
 
@@ -75,7 +75,7 @@ async def join_player_to_game(
 
 @router.post("/leave")
 async def leave_player_from_room(
-    ctx: GameContext = Depends(get_context),
+    ctx: GameContext = Depends(game_context),
 ) -> ContextData:
     """Выходит из активной комнаты.
 
@@ -97,7 +97,7 @@ async def leave_player_from_room(
 
 @router.get("/")
 async def get_active_game(
-    ctx: GameContext = Depends(get_context),
+    ctx: GameContext = Depends(game_context),
 ) -> ContextData:
     """Получает игровой контекст.
 
@@ -110,7 +110,7 @@ async def get_active_game(
 
 @router.post("/start")
 async def start_room_game(
-    ctx: GameContext = Depends(get_context),
+    ctx: GameContext = Depends(game_context),
 ) -> ContextData:
     """Начинает новую игру в комнате.
 
@@ -135,7 +135,9 @@ async def start_room_game(
 
 
 @router.post("/end")
-async def end_room_game(ctx: GameContext = Depends(get_context)) -> ContextData:
+async def end_room_game(
+    ctx: GameContext = Depends(game_context),
+) -> ContextData:
     """Принудительно завершает игру в комнате.
 
     Редко используемая опция, тем не менее имеет место быть.
@@ -151,7 +153,7 @@ async def end_room_game(ctx: GameContext = Depends(get_context)) -> ContextData:
 
 @router.post("/kick/{user_id}")
 async def kick_player(
-    user_id: str, ctx: GameContext = Depends(get_context)
+    user_id: str, ctx: GameContext = Depends(game_context)
 ) -> ContextData:
     """Исключает пользователя из игры.
 
@@ -169,7 +171,7 @@ async def kick_player(
 
 
 @router.post("/skip")
-async def skip_player(ctx: GameContext = Depends(get_context)) -> ContextData:
+async def skip_player(ctx: GameContext = Depends(game_context)) -> ContextData:
     """Пропускает игрока.
 
     Если к примеру игрок зазевался и не даёт продолжать игру.
@@ -188,7 +190,7 @@ async def skip_player(ctx: GameContext = Depends(get_context)) -> ContextData:
 
 
 @router.post("/next")
-async def next_turn(ctx: GameContext = Depends(get_context)) -> ContextData:
+async def next_turn(ctx: GameContext = Depends(game_context)) -> ContextData:
     """Передает ход дальше.
 
     Есть такая вероятность что пользователи могут шалить, пропуская свой ход.
@@ -206,7 +208,7 @@ async def next_turn(ctx: GameContext = Depends(get_context)) -> ContextData:
 
 
 @router.post("/take")
-async def take_cards(ctx: GameContext = Depends(get_context)) -> ContextData:
+async def take_cards(ctx: GameContext = Depends(game_context)) -> ContextData:
     """Взятие карт.
 
     Игрок берёт количество карт, равное игровому счётчику.
@@ -226,7 +228,7 @@ async def take_cards(ctx: GameContext = Depends(get_context)) -> ContextData:
 
 @router.post("/shotgun/take")
 async def shotgun_take_cards(
-    ctx: GameContext = Depends(get_context),
+    ctx: GameContext = Depends(game_context),
 ) -> ContextData:
     """Взять карты, чтобы не стрелять.
 
@@ -248,7 +250,7 @@ async def shotgun_take_cards(
 
 
 @router.post("/shotgun/shot")
-async def shotgun_shot(ctx: GameContext = Depends(get_context)) -> ContextData:
+async def shotgun_shot(ctx: GameContext = Depends(game_context)) -> ContextData:
     """Когда решил стрелять, лишь бы не брать карты."""
     if ctx.game is None:
         raise HTTPException(404, "No active game in room")
@@ -272,7 +274,7 @@ async def shotgun_shot(ctx: GameContext = Depends(get_context)) -> ContextData:
 
 
 @router.post("/bluff")
-async def bluff_player(ctx: GameContext = Depends(get_context)) -> ContextData:
+async def bluff_player(ctx: GameContext = Depends(game_context)) -> ContextData:
     """Проверка игрока на честность."""
     if ctx.game is None:
         raise HTTPException(404, "No active game in room")
@@ -285,7 +287,7 @@ async def bluff_player(ctx: GameContext = Depends(get_context)) -> ContextData:
 
 @router.post("/color/{color}")
 async def select_card_color(
-    color: CardColor, ctx: GameContext = Depends(get_context)
+    color: CardColor, ctx: GameContext = Depends(game_context)
 ) -> ContextData:
     """Выбирает цвет для карты выбор цвета или +4."""
     if ctx.game is None:
@@ -298,7 +300,7 @@ async def select_card_color(
 
 @router.post("/player/{user_id}")
 async def select_player(
-    user_id: str, ctx: GameContext = Depends(get_context)
+    user_id: str, ctx: GameContext = Depends(game_context)
 ) -> ContextData:
     """Выбирает игрока, с кем можно обменяться картами."""
     if ctx.game is None:
@@ -315,7 +317,7 @@ async def select_player(
 @router.post("/card/")
 async def push_card_from_hand(
     card: UnoCard = Depends(card_schema_to_card),
-    ctx: GameContext = Depends(get_context),
+    ctx: GameContext = Depends(game_context),
 ) -> ContextData:
     """Разыгрывает карту из руки игрока."""
     if ctx.game is None:

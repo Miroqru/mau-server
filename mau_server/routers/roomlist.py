@@ -10,14 +10,14 @@ from fastapi import (
     WebSocketDisconnect,
 )
 from loguru import logger
+from mau.game.player import BaseUser
 from tortoise.queryset import QuerySet
 
-from mau.player import BaseUser
-from mauserve.config import sm, stm
-from mauserve.models import RoomModel, UserModel
-from mauserve.schemes.db import RoomData
-from mauserve.schemes.roomlist import RoomDataIn
-from mauserve.services.game_context import get_context
+from mau_server.config import sm, stm
+from mau_server.models import Room, RoomState, User
+from mau_server.schemes.db import RoomData
+from mau_server.schemes.roomlist import RoomDataIn
+from mau_server.services.game_context import game_context
 
 router = APIRouter(prefix="/rooms", tags=["room list"])
 
@@ -29,22 +29,22 @@ router = APIRouter(prefix="/rooms", tags=["room list"])
 @router.websocket("/{room_id}")
 async def add_client(room_id: str, websocket: WebSocket) -> None:
     """Добавляет нового клиента для прослушивания игровых событий."""
-    await sm.event_handler.connect(room_id, websocket)
+    await sm._event_handler.connect(room_id, websocket)
     try:
         while True:
             data = await websocket.receive_text()
             logger.info(data)
     except WebSocketDisconnect:
-        sm.event_handler.disconnect(room_id, websocket)
+        sm._event_handler.disconnect(room_id, websocket)
 
 
 @router.get("/")
 async def get_public_rooms(
-    order_by: str | None = "create_time", invert: bool | None = False
+    order_by: str = "create_time", invert: bool = False
 ) -> list[RoomData]:
     """Получает все доступные открытые комнаты."""
     return await RoomData.from_queryset(
-        RoomModel.filter(private=False)
+        Room.filter(private=False)
         .exclude(status="ended")
         .order_by("-" + order_by if not invert else order_by)
     )
@@ -52,13 +52,11 @@ async def get_public_rooms(
 
 @router.get("/active")
 async def get_active_user_room(
-    user: UserModel = Depends(stm.read_token),
+    user: User = Depends(stm.read_token),
 ) -> RoomData:
     """Получает комнату, в которой сейчас находится пользователь."""
-    active_room: QuerySet[RoomModel] = (
-        await RoomModel.filter(players=user)
-        .exclude(status="ended")
-        .get_or_none()
+    active_room: QuerySet[Room] = (
+        await Room.filter(players=user).exclude(status="ended").get_or_none()
     )
 
     if active_room is None:
@@ -70,7 +68,7 @@ async def get_active_user_room(
 @router.get("/random")
 async def get_random_room() -> RoomData:
     """Получает случайную доступную комнату."""
-    rooms: QuerySet[RoomModel] = await RoomModel.filter(private=False).exclude(
+    rooms: QuerySet[Room] = await Room.filter(private=False).exclude(
         status="ended"
     )
     if len(rooms) == 0:
@@ -83,7 +81,7 @@ async def get_random_room() -> RoomData:
 async def get_room_info(room_id: str) -> RoomData:
     """Получает информацию о комнате по её ID."""
     try:
-        room = await RoomModel.get_or_none(id=room_id)
+        room = await Room.get_or_none(id=room_id)
     # На тот случай, если пользователь передаст плохой UUID
     except Exception as e:
         logger.error(e)
@@ -100,16 +98,16 @@ async def get_room_info(room_id: str) -> RoomData:
 
 @router.post("/")
 async def create_new_room(
-    ctx: UserModel = Depends(get_context),
+    ctx: User = Depends(game_context),
 ) -> RoomData:
     """Создаёт новую пользовательскую комнату."""
-    current_room = await RoomModel.exclude(status="ended").get_or_none(
+    current_room = await Room.exclude(status="ended").get_or_none(
         players=ctx.user.id
     )
     if current_room is not None:
         raise HTTPException(409, "User already in room")
 
-    room = await RoomModel.create(
+    room = await Room.create(
         name=f"комната {ctx.user.name}",
         owner_id=ctx.user.id,
     )
@@ -127,13 +125,13 @@ async def create_new_room(
 async def update_room(
     room_id: str,
     room_data: RoomDataIn,
-    user: UserModel = Depends(stm.read_token),
+    user: User = Depends(stm.read_token),
 ) -> RoomData:
     """Обновляет информацию о комнате."""
-    room: RoomModel = await RoomModel.get_or_none(id=room_id)
+    room = await Room.get_or_none(id=room_id)
     if room is None:
         raise HTTPException(404, "Room not found")
-    if room.owner_id != user.id:
+    if room.owner != user:
         raise HTTPException(401, "User is not room owner")
 
     await room.update_from_dict(room_data.model_dump(exclude_unset=True))
@@ -144,13 +142,13 @@ async def update_room(
 @router.delete("/{room_id}")
 async def delete_room(
     room_id: str,
-    user: UserModel = Depends(stm.read_token),
+    user: User = Depends(stm.read_token),
 ) -> dict:
     """Принудительно удаляет комнату."""
-    room: RoomModel = await RoomModel.get_or_none(id=room_id)
+    room = await Room.get_or_none(id=room_id)
     if room is None:
         raise HTTPException(404, "Room not found")
-    if room.owner_id != user.id:
+    if room.owner != user:
         raise HTTPException(401, "User is not room owner")
 
     await room.delete()
@@ -180,10 +178,10 @@ async def delete_room(
 # async def update_room_modes(
 #     room_id: str,
 #     rules: RoomModeIn,
-#     user: UserModel = Depends(stm.read_token),
+#     user: User = Depends(stm.read_token),
 # ) -> list[RoomMode]:
 #     """Обновляет список игровых режимов для комнаты."""
-#     room: RoomModel = await RoomModel.get_or_none(id=room_id)
+#     room: Room = await Room.get_or_none(id=room_id)
 #     if room is None:
 #         raise HTTPException(404, "Room not found")
 #     if room.owner_id != user.id:
@@ -208,16 +206,16 @@ async def delete_room(
 @router.post("/{room_id}/join")
 async def join_in_room(
     room_id: str,
-    user: UserModel = Depends(stm.read_token),
+    user: User = Depends(stm.read_token),
 ) -> RoomData:
     """Добавляет пользователя в комнату."""
-    current_room = await RoomModel.exclude(status="ended").get_or_none(
+    current_room = await Room.exclude(status="ended").get_or_none(
         players=user.id
     )
     if current_room is not None:
         raise HTTPException(409, "User already join another room")
 
-    room: RoomModel = await RoomModel.get_or_none(id=room_id)
+    room = await Room.get_or_none(id=room_id)
     if room is None:
         raise HTTPException(404, "Room not found")
 
@@ -236,13 +234,13 @@ async def join_in_room(
 async def kick_user_from_room(
     room_id: str,
     username: str,
-    user: UserModel = Depends(stm.read_token),
+    user: User = Depends(stm.read_token),
 ) -> RoomData:
     """Выгоняет пользователя из комнату."""
-    room: RoomModel = await RoomModel.get_or_none(id=room_id)
+    room = await Room.get_or_none(id=room_id)
     if room is None:
         raise HTTPException(404, "Room not found")
-    if room.owner_id != user.id:
+    if room.owner != user:
         raise HTTPException(401, "User is not room owner")
     kick_user = await room.players.filter(username=username).first()
     if kick_user is None:
@@ -255,13 +253,13 @@ async def kick_user_from_room(
 async def set_user_room_owner(
     room_id: str,
     username: str,
-    user: UserModel = Depends(stm.read_token),
+    user: User = Depends(stm.read_token),
 ) -> RoomData:
     """Назначает пользователя владельцем комнаты."""
-    room: RoomModel = await RoomModel.get_or_none(id=room_id)
+    room = await Room.get_or_none(id=room_id)
     if room is None:
         raise HTTPException(404, "Room not found")
-    if room.owner_id != user.id:
+    if room.owner != user:
         raise HTTPException(401, "User is not room owner")
     new_owner_user = await room.players.filter(username=username).first()
     if new_owner_user is None:
@@ -273,10 +271,10 @@ async def set_user_room_owner(
 @router.post("/{room_id}/leave")
 async def leave_from_room(
     room_id: str,
-    user: UserModel = Depends(stm.read_token),
+    user: User = Depends(stm.read_token),
 ) -> RoomData:
     """Выход из комнаты."""
-    room: RoomModel = await RoomModel.get_or_none(id=room_id)
+    room = await Room.get_or_none(id=room_id)
     if room is None:
         raise HTTPException(404, "Room not found")
     room_user = await room.players.filter(id=user.id).first()
@@ -284,8 +282,8 @@ async def leave_from_room(
         raise HTTPException(409, "User not found in this room")
 
     # Когда выходит создатель, вся комната завершается
-    if user.id == room.owner_id:
-        room.status = "ended"
+    if user == room.owner:
+        room.status = RoomState.ended
         await room.save()
     else:
         await room.players.remove(room_user)

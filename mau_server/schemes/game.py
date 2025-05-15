@@ -65,7 +65,7 @@ class PlayerData(BaseModel):
 
     user_id: str
     name: str
-    hand: int | SortedCardsData
+    hand: int | CoverCardsData
     shotgun_current: int
 
 

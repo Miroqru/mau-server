@@ -15,10 +15,10 @@ from fastapi import APIRouter, Depends, HTTPException
 from loguru import logger
 from tortoise.exceptions import IntegrityError
 
-from mauserve.config import stm
-from mauserve.models import UserModel
-from mauserve.schemes.db import UserData
-from mauserve.schemes.users import (
+from mau_server.config import stm
+from mau_server.models import User
+from mau_server.schemes.db import UserData
+from mau_server.schemes.users import (
     ChangePasswordDataIn,
     EditUserDataIn,
     UserDataIn,
@@ -30,7 +30,7 @@ router = APIRouter(prefix="/users", tags=["users"])
 @router.get("/")
 async def get_users() -> list[UserData]:
     """Получает всех пользователей из базы данных."""
-    return await UserData.from_queryset(UserModel.all())
+    return await UserData.from_queryset(User.all())
 
 
 # Регистрация пользователя
@@ -43,7 +43,7 @@ async def register_user(
 ) -> UserData:
     """Регистрирует нового пользователя."""
     try:
-        new_user = await UserModel.create(
+        new_user = await User.create(
             username=user.username,
             name=user.username,
             password_hash=str(
@@ -64,7 +64,7 @@ async def register_user(
 @router.post("/change-password")
 async def change_my_password(
     password_data: ChangePasswordDataIn,
-    user: UserModel = Depends(stm.read_token),
+    user: User = Depends(stm.read_token),
 ) -> UserData:
     """Процедура смены пароля пользователя.
 
@@ -91,7 +91,7 @@ async def login_user(
     userdata: Annotated[UserDataIn, "Данные для входа"],
 ) -> dict[str, str]:
     """Получает новый токен для пользователя."""
-    user = await UserModel.get_or_none(username=userdata.username)
+    user = await User.get_or_none(username=userdata.username)
     if user is None:
         raise HTTPException(401, "Incorrect user or password")
 
@@ -104,7 +104,7 @@ async def login_user(
 
 
 @router.get("/me")
-async def get_my_profile(user: UserModel = Depends(stm.read_token)) -> UserData:
+async def get_my_profile(user: User = Depends(stm.read_token)) -> UserData:
     """Получает ваш профиль.
 
     неплохой способ чтобы проверить работу токена.
@@ -114,7 +114,7 @@ async def get_my_profile(user: UserModel = Depends(stm.read_token)) -> UserData:
 
 @router.put("/")
 async def edit_my_profile(
-    edit_user: EditUserDataIn, user: UserModel = Depends(stm.read_token)
+    edit_user: EditUserDataIn, user: User = Depends(stm.read_token)
 ) -> UserData:
     """Изменяет основные данные пользователя."""
     user.update_from_dict(edit_user.model_dump(exclude_unset=True))
@@ -131,7 +131,7 @@ async def get_user_by_username(username: str) -> UserData:
     if len(username) > 16:  # noqa: PLR2004
         raise HTTPException(404, "User not found")
 
-    user = await UserModel.get_or_none(username=username)
+    user = await User.get_or_none(username=username)
     if user is None:
         raise HTTPException(404, "User not found")
 
