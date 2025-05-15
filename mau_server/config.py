@@ -5,11 +5,13 @@
 Данные настройки будут храниться как переменные окружения в .env файле.
 """
 
+from mau.session import SessionManager
 from pydantic import PostgresDsn
 from pydantic_settings import BaseSettings
 from redis.asyncio.client import Redis
 
-# from mauserve.services.events import WebSocketEventHandler
+from mau_server.services.events import WebSocketEventHandler
+
 # from mauserve.services.token import SimpleTokenManager
 
 
@@ -31,10 +33,12 @@ class Config(BaseSettings):
 
 
 # Создаём экземпляр настроек
-config = Config(_env_file=".env")
+config = Config(_env_file=".env")  # type: ignore
 redis = Redis.from_url(
     config.redis_url, encoding="utf-8", decode_responses=True
 )
 
 # stm = SimpleTokenManager(config.jwt_key, ttl=86_400)
-# sm: SessionManager = SessionManager(event_handler=WebSocketEventHandler())
+sm: SessionManager[WebSocketEventHandler] = SessionManager(
+    event_handler=WebSocketEventHandler()
+)

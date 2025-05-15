@@ -172,7 +172,7 @@ def dump_bluff(
     return (dump_player(bluff[0]), bluff[1])
 
 
-def game_to_data(game: UnoGame) -> GameData:
+def dump_game(game: UnoGame) -> GameData:
     """Преобразует игру в схему."""
     return GameData(
         room_id=game.room_id,
@@ -199,10 +199,10 @@ def game_to_data(game: UnoGame) -> GameData:
     )
 
 
-async def context_to_data(ctx: GameContext) -> ContextData:
+async def dump_context(ctx: GameContext) -> ContextData:
     """Преобразует игровой контекст в схему."""
     return ContextData(
-        game=None if ctx.game is None else game_to_data(ctx.game),
+        game=None if ctx.game is None else dump_game(ctx.game),
         player=None
         if ctx.player is None
         else dump_player(ctx.player, show_cards=True),

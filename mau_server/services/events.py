@@ -8,12 +8,7 @@ from mau.enums import GameEvents
 from mau.events import BaseEventHandler, Event
 from pydantic import BaseModel
 
-from mau_server.schemes.game import (
-    GameData,
-    PlayerData,
-    game_to_data,
-    player_to_data,
-)
+from mau_server.schemes.game import GameData, PlayerData, dump_game, dump_player
 
 
 class EventData(BaseModel):
@@ -56,9 +51,9 @@ class WebSocketEventHandler(BaseEventHandler):
         """Отправляет событие клиентам."""
         event_data = EventData(
             event=event.event_type,
-            player=player_to_data(event.player),
+            player=dump_player(event.player),
             data=event.data,
-            game=game_to_data(event.game),
+            game=dump_game(event.game),
         )
 
         for connection in self.clients.get(event.game.room_id, []):
