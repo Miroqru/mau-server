@@ -6,18 +6,14 @@ from fastapi import (
     HTTPException,
 )
 from loguru import logger
-from mau.card import CardColor, TakeCard, TakeFourCard, UnoCard
-from mau.enums import GameState
-from mau.player import BaseUser
+from mau.deck.behavior import TakeBehavior, WildTakeBehavior
+from mau.deck.card import UnoCard
+from mau.enums import CardColor, GameState
+from mau.game.player import BaseUser
 
 from mau_server.config import sm
 from mau_server.models import Game, User
-from mau_server.schemes.game import (
-    ContextData,
-    GameContext,
-    card_schema_to_card,
-    dump_context,
-)
+from mau_server.schemes.game import ContextData, GameContext, dump_context
 from mau_server.services.game_context import game_context
 
 router = APIRouter(prefix="/game", tags=["games"])
@@ -25,23 +21,26 @@ router = APIRouter(prefix="/game", tags=["games"])
 
 async def save_game(ctx: GameContext) -> None:
     """Записывает игру в базу данных."""
+    if ctx.game is None:
+        return
+
     game = Game(
         create_time=ctx.game.game_start,
         owner=await User.get_or_none(username=ctx.game.owner.user_id),
         room=ctx.room,
     )
 
-    for pl in ctx.game.winners:
+    for pl in ctx.game.pm.iter(ctx.game.pm.winners):
         winner = await User.get_or_none(username=pl.user_id)
         if winner is not None:
-            game.winners.add(winner)
+            await game.winners.add(winner)
         else:
             logger.error("Not found winner {}", pl.user_id)
 
-    for pl in ctx.game.losers:
+    for pl in ctx.game.pm.iter(ctx.game.pm.losers):
         loser = await User.get_or_none(username=pl.user_id)
         if loser is not None:
-            game.losers.add(loser)
+            await game.losers.add(loser)
         else:
             logger.error("Not found loser {}", pl.user_id)
 
@@ -69,7 +68,9 @@ async def join_player_to_game(
     if ctx.player is not None:
         raise HTTPException(409, "Player already join to room")
 
-    sm.join(ctx.room.id, BaseUser(ctx.user.username, ctx.user.name))
+    ctx.game.join_player(
+        BaseUser(ctx.user.id, ctx.user.name, ctx.user.username)
+    )
     return await dump_context(ctx)
 
 
@@ -84,7 +85,7 @@ async def leave_player_from_room(
     if ctx.player is None or ctx.game is None:
         raise HTTPException(404, "Room or player not found to leave from game")
 
-    sm.leave(ctx.player)
+    ctx.game.leave_player(ctx.player)
     if not ctx.game.started:
         await save_game(ctx)
 
@@ -116,11 +117,14 @@ async def start_room_game(
 
     Включает в себя как процесс создания комнаты, так и начало игры.
     """
-    if ctx.game is not None:
+    if ctx.game is None:
+        raise HTTPException(404, "Game not found")
+
+    if ctx.game.started:
         raise HTTPException(
             409, "Game already created, end game before create new"
         )
-    elif ctx.user.id != ctx.room.owner_id:
+    elif ctx.user != ctx.room.owner:
         raise HTTPException(401, "You are not a room owner to create new game")
 
     # Сразу добавляем всех игроков из комнаты
@@ -128,7 +132,7 @@ async def start_room_game(
         if user.id == ctx.user.id:
             continue
 
-        sm.join(str(ctx.room.id), BaseUser(user.username, user.name))
+        ctx.game.join_player(BaseUser(user.username, user.name))
 
     ctx.game.start()
     return await dump_context(ctx)
@@ -144,7 +148,7 @@ async def end_room_game(
     """
     if ctx.game is None:
         raise HTTPException(404, "No active game to end")
-    elif ctx.user.id != ctx.room.owner_id:
+    elif ctx.user != ctx.room.owner:
         raise HTTPException(401, "You are not a room owner to end this game")
 
     await save_game(ctx)
@@ -161,12 +165,16 @@ async def kick_player(
     """
     if ctx.game is None:
         raise HTTPException(404, "No active game to kick player")
-    elif ctx.user.id != ctx.room.owner_id:
+    elif ctx.user != ctx.room.owner:
         raise HTTPException(401, "You are not a room owner to kik player")
 
-    ctx.game.remove_player(user_id)
+    kick_player = sm.player(user_id)
+    if kick_player is None:
+        raise HTTPException(404, "Kick player not in game")
+
+    ctx.game.leave_player(kick_player)
     if not ctx.game.started:
-        await save_game()
+        await save_game(ctx)
     return await dump_context(ctx)
 
 
@@ -242,7 +250,7 @@ async def shotgun_take_cards(
 
     ctx.player.take_cards()
     if (
-        isinstance(ctx.game.deck.top, TakeCard | TakeFourCard)
+        isinstance(ctx.game.deck.top.behavior, TakeBehavior | WildTakeBehavior)
         and ctx.game.take_counter
     ):
         ctx.game.next_turn()
@@ -257,14 +265,14 @@ async def shotgun_shot(ctx: GameContext = Depends(game_context)) -> ContextData:
     elif ctx.player is None:
         raise HTTPException(404, "You are not a game player")
 
-    res = ctx.player.shotgun()
+    res = ctx.player.shotgun.shot()
     if res:
-        sm.leave(ctx.player)
+        ctx.game.leave_player(ctx.player)
 
     else:
         ctx.game.take_counter = round(ctx.game.take_counter * 1.5)
         if ctx.game.player != ctx.player:
-            ctx.game.set_current_player(ctx.player)
+            ctx.game.pm.set_cp(ctx.player)
         ctx.game.next_turn()
         ctx.game.state = GameState.SHOTGUN
 
@@ -294,6 +302,7 @@ async def select_card_color(
         raise HTTPException(404, "No active game in room")
     elif ctx.player is None:
         raise HTTPException(404, "You are not a game player")
+
     ctx.game.choose_color(color)
     return await dump_context(ctx)
 
@@ -308,18 +317,24 @@ async def select_player(
     elif ctx.player is None:
         raise HTTPException(404, "You are not a game player")
 
-    other_player = ctx.game.get_player(user_id)
+    other_player = sm.player(user_id)
+    if other_player is None:
+        raise HTTPException(404, "Other player is None")
+
     if ctx.game.state == GameState.TWIST_HAND:
         ctx.player.twist_hand(other_player)
+
     return await dump_context(ctx)
 
 
 @router.post("/card/")
 async def push_card_from_hand(
-    card: UnoCard = Depends(card_schema_to_card),
+    card: UnoCard | None = Depends(UnoCard.unpack),
     ctx: GameContext = Depends(game_context),
 ) -> ContextData:
     """Разыгрывает карту из руки игрока."""
+    if card is None:
+        raise HTTPException(404, "Card is None")
     if ctx.game is None:
         raise HTTPException(404, "No active game in room")
     elif ctx.player is None:

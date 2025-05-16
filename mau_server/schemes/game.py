@@ -5,7 +5,7 @@ from datetime import datetime
 
 from mau.deck.card import UnoCard
 from mau.deck.deck import Deck
-from mau.enums import CardColor, CardType, GameState
+from mau.enums import CardColor, GameState
 from mau.game.game import UnoGame
 from mau.game.player import Player, SortedCards
 from pydantic import BaseModel
@@ -25,7 +25,7 @@ class CardData(BaseModel):
     """
 
     color: CardColor
-    card_type: CardType
+    behavior: str
     value: int
 
 
@@ -119,7 +119,7 @@ def dump_card(card: UnoCard) -> CardData:
     """Преобразуем экземпляр карты в её схему."""
     return CardData(
         color=card.color,
-        card_type=card.card_type,
+        behavior=card.behavior.name,
         value=card.value,
     )
 
@@ -207,21 +207,3 @@ async def dump_context(ctx: GameContext) -> ContextData:
         if ctx.player is None
         else dump_player(ctx.player, show_cards=True),
     )
-
-
-# FIXME: Тяжёлый случай
-def card_schema_to_card(card: CardData) -> UnoCard:
-    """Возвращает карту из запакованных данных."""
-    # if card.card_type == CardType.NUMBER:
-    #     return NumberCard(card.color, card.value)
-    # elif card.card_type == CardType.TAKE:
-    #     return TakeCard(card.color, card.value)
-    # elif card.card_type == CardType.REVERSE:
-    #     return ReverseCard(card.color)
-    # elif card.card_type == CardType.TURN:
-    #     return TurnCard(card.color, card.value)
-    # elif card.card_type == CardType.CHOOSE_COLOR:
-    #     return ChooseColorCard()
-    # elif card.card_type == CardType.TAKE_FOUR:
-    #     return TakeFourCard(card.value)
-    pass

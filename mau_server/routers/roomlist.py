@@ -11,11 +11,11 @@ from fastapi import (
 )
 from loguru import logger
 from mau.game.player import BaseUser
-from tortoise.queryset import QuerySet
 
 from mau_server.config import sm, stm
 from mau_server.models import Room, RoomState, User
 from mau_server.schemes.db import RoomData
+from mau_server.schemes.game import GameContext
 from mau_server.schemes.roomlist import RoomDataIn
 from mau_server.services.game_context import game_context
 
@@ -55,7 +55,7 @@ async def get_active_user_room(
     user: User = Depends(stm.read_token),
 ) -> RoomData:
     """Получает комнату, в которой сейчас находится пользователь."""
-    active_room: QuerySet[Room] = (
+    active_room = (
         await Room.filter(players=user).exclude(status="ended").get_or_none()
     )
 
@@ -68,9 +68,7 @@ async def get_active_user_room(
 @router.get("/random")
 async def get_random_room() -> RoomData:
     """Получает случайную доступную комнату."""
-    rooms: QuerySet[Room] = await Room.filter(private=False).exclude(
-        status="ended"
-    )
+    rooms = await Room.filter(private=False).exclude(status="ended")
     if len(rooms) == 0:
         raise HTTPException(404, "No open rooms to join")
     random_room = rooms[random.randint(0, len(rooms))]
@@ -97,9 +95,7 @@ async def get_room_info(room_id: str) -> RoomData:
 
 
 @router.post("/")
-async def create_new_room(
-    ctx: User = Depends(game_context),
-) -> RoomData:
+async def create_new_room(ctx: GameContext = Depends(game_context)) -> RoomData:
     """Создаёт новую пользовательскую комнату."""
     current_room = await Room.exclude(status="ended").get_or_none(
         players=ctx.user.id
@@ -115,7 +111,7 @@ async def create_new_room(
 
     ctx.game = sm.create(
         str(ctx.room.id),
-        BaseUser(ctx.user.username, ctx.user.name),
+        BaseUser(str(ctx.user.id), ctx.user.name, ctx.user.username),
     )
 
     return await RoomData.from_tortoise_orm(room)
