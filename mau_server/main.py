@@ -8,14 +8,12 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-
-# from loguru import logger
+from loguru import logger
 from tortoise import generate_config
 from tortoise.contrib.fastapi import RegisterTortoise
 
 from mau_server.config import config
-
-# from mau_server.routers import ROUTERS
+from mau_server.routers import ROUTERS
 
 
 @asynccontextmanager
@@ -61,6 +59,6 @@ app.add_middleware(
 
 
 # Подключает сторонние маршруты
-# for router in ROUTERS:
-#     app.include_router(router)
-#     logger.info("Include router: {}", router.prefix)
+for router in ROUTERS:
+    app.include_router(router)
+    logger.info("Include router: {}", router.prefix)

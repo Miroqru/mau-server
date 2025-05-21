@@ -3,10 +3,10 @@
 from dataclasses import dataclass
 from datetime import datetime
 
-from mau.deck.card import UnoCard
+from mau.deck.card import MauCard
 from mau.deck.deck import Deck
 from mau.enums import CardColor, GameState
-from mau.game.game import UnoGame
+from mau.game.game import MauGame
 from mau.game.player import Player, SortedCards
 from pydantic import BaseModel
 
@@ -100,7 +100,7 @@ class GameContext:
 
     user: User
     room: Room
-    game: UnoGame | None
+    game: MauGame | None
     player: Player | None
 
 
@@ -115,7 +115,7 @@ class ContextData(BaseModel):
 # ===================
 
 
-def dump_card(card: UnoCard) -> CardData:
+def dump_card(card: MauCard) -> CardData:
     """Преобразуем экземпляр карты в её схему."""
     return CardData(
         color=card.color,
@@ -172,7 +172,7 @@ def dump_bluff(
     return (dump_player(bluff[0]), bluff[1])
 
 
-def dump_game(game: UnoGame) -> GameData:
+def dump_game(game: MauGame) -> GameData:
     """Преобразует игру в схему."""
     return GameData(
         room_id=game.room_id,

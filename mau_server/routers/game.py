@@ -7,7 +7,7 @@ from fastapi import (
 )
 from loguru import logger
 from mau.deck.behavior import TakeBehavior, WildTakeBehavior
-from mau.deck.card import UnoCard
+from mau.deck.card import MauCard
 from mau.enums import CardColor, GameState
 from mau.game.player import BaseUser
 
@@ -329,7 +329,7 @@ async def select_player(
 
 @router.post("/card/")
 async def push_card_from_hand(
-    card: UnoCard | None = Depends(UnoCard.unpack),
+    card: MauCard | None = Depends(MauCard.unpack),
     ctx: GameContext = Depends(game_context),
 ) -> ContextData:
     """Разыгрывает карту из руки игрока."""
