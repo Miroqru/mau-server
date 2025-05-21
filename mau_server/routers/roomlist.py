@@ -70,7 +70,7 @@ async def get_random_room() -> RoomData:
     rooms = await Room.filter(private=False).exclude(status="ended")
     if len(rooms) == 0:
         raise HTTPException(404, "No open rooms to join")
-    random_room = rooms[random.randint(0, len(rooms))]
+    random_room = rooms[random.randint(0, len(rooms) - 1)]
     return await RoomData.from_tortoise_orm(random_room)
 
 
