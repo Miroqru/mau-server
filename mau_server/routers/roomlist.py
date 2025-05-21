@@ -1,6 +1,7 @@
 """Работа со списком комнат."""
 
 import random
+from uuid import UUID
 
 from fastapi import (
     APIRouter,
@@ -15,9 +16,7 @@ from mau.game.player import BaseUser
 from mau_server.config import sm, stm
 from mau_server.models import Room, RoomState, User
 from mau_server.schemes.db import RoomData
-from mau_server.schemes.game import GameContext
 from mau_server.schemes.roomlist import RoomDataIn
-from mau_server.services.game_context import game_context
 
 router = APIRouter(prefix="/rooms", tags=["room list"])
 
@@ -27,15 +26,15 @@ router = APIRouter(prefix="/rooms", tags=["room list"])
 
 
 @router.websocket("/{room_id}")
-async def add_client(room_id: str, websocket: WebSocket) -> None:
+async def add_client(room_id: UUID, websocket: WebSocket) -> None:
     """Добавляет нового клиента для прослушивания игровых событий."""
-    await sm._event_handler.connect(room_id, websocket)
+    await sm._event_handler.connect(str(room_id), websocket)
     try:
         while True:
             data = await websocket.receive_text()
             logger.info(data)
     except WebSocketDisconnect:
-        sm._event_handler.disconnect(room_id, websocket)
+        sm._event_handler.disconnect(str(room_id), websocket)
 
 
 @router.get("/")
@@ -76,7 +75,7 @@ async def get_random_room() -> RoomData:
 
 
 @router.get("/{room_id}")
-async def get_room_info(room_id: str) -> RoomData:
+async def get_room_info(room_id: UUID) -> RoomData:
     """Получает информацию о комнате по её ID."""
     try:
         room = await Room.get_or_none(id=room_id)
@@ -119,7 +118,7 @@ async def create_new_room(user: User = Depends(stm.read_token)) -> RoomData:
 
 @router.put("/{room_id}")
 async def update_room(
-    room_id: str,
+    room_id: UUID,
     room_data: RoomDataIn,
     user: User = Depends(stm.read_token),
 ) -> RoomData:
@@ -137,7 +136,7 @@ async def update_room(
 
 @router.delete("/{room_id}")
 async def delete_room(
-    room_id: str,
+    room_id: UUID,
     user: User = Depends(stm.read_token),
 ) -> dict:
     """Принудительно удаляет комнату."""
@@ -201,7 +200,7 @@ async def delete_room(
 
 @router.post("/{room_id}/join")
 async def join_in_room(
-    room_id: str,
+    room_id: UUID,
     user: User = Depends(stm.read_token),
 ) -> RoomData:
     """Добавляет пользователя в комнату."""
@@ -228,7 +227,7 @@ async def join_in_room(
 
 @router.post("/{room_id}/kick/{username}")
 async def kick_user_from_room(
-    room_id: str,
+    room_id: UUID,
     username: str,
     user: User = Depends(stm.read_token),
 ) -> RoomData:
@@ -247,7 +246,7 @@ async def kick_user_from_room(
 
 @router.post("/{room_id}/owner/{username}")
 async def set_user_room_owner(
-    room_id: str,
+    room_id: UUID,
     username: str,
     user: User = Depends(stm.read_token),
 ) -> RoomData:
@@ -266,7 +265,7 @@ async def set_user_room_owner(
 
 @router.post("/{room_id}/leave")
 async def leave_from_room(
-    room_id: str,
+    room_id: UUID,
     user: User = Depends(stm.read_token),
 ) -> RoomData:
     """Выход из комнаты."""
