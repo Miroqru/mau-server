@@ -60,7 +60,7 @@ class Room(Model):
     name = fields.CharField(max_length=64)
     create_time = fields.DatetimeField(auto_now_add=True)
     private = fields.BooleanField(default=False)
-    password_hash = fields.TextField()
+    password_hash = fields.TextField(null=True)
 
     # Участники
     owner: fields.ForeignKeyRelation[User] = fields.ForeignKeyField(

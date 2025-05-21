@@ -6,6 +6,12 @@
 Работать с токенами для авторизации.
 Проверять платную подписку пользователя.
 Управлять подписчиками.
+
+- TODO: Система сброса пароля пользователя.
+- TODO: Усложнить вход в систему.
+- TODO: Привязка к почет/номеру.
+- TODO: Нормальная авторизация, а не просто токен.
+- TODO: Отдельные методы для получения истории игр.
 """
 
 from typing import Annotated
@@ -117,7 +123,9 @@ async def edit_my_profile(
     edit_user: EditUserDataIn, user: User = Depends(stm.read_token)
 ) -> UserData:
     """Изменяет основные данные пользователя."""
-    user.update_from_dict(edit_user.model_dump(exclude_unset=True))
+    user.update_from_dict(
+        edit_user.model_dump(exclude_unset=True, exclude_none=True)
+    )
     await user.save()
     return await UserData.from_tortoise_orm(user)
 

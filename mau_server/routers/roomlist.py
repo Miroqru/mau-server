@@ -95,23 +95,23 @@ async def get_room_info(room_id: str) -> RoomData:
 
 
 @router.post("/")
-async def create_new_room(ctx: GameContext = Depends(game_context)) -> RoomData:
+async def create_new_room(user: User = Depends(stm.read_token)) -> RoomData:
     """Создаёт новую пользовательскую комнату."""
     current_room = await Room.exclude(status="ended").get_or_none(
-        players=ctx.user.id
+        players=user.id
     )
     if current_room is not None:
         raise HTTPException(409, "User already in room")
 
     room = await Room.create(
-        name=f"комната {ctx.user.name}",
-        owner_id=ctx.user.id,
+        name=f"комната {user.name}",
+        owner_id=user.id,
     )
-    await room.players.add(ctx.user)
+    await room.players.add(user)
 
-    ctx.game = sm.create(
-        str(ctx.room.id),
-        BaseUser(str(ctx.user.id), ctx.user.name, ctx.user.username),
+    sm.create(
+        str(room.id),
+        BaseUser(str(user.id), user.name, user.username),
     )
 
     return await RoomData.from_tortoise_orm(room)
