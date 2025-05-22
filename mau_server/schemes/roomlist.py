@@ -3,6 +3,8 @@
 Используются при взаимодействии с комнатами
 """
 
+from uuid import UUID
+
 from pydantic import BaseModel
 
 
@@ -17,6 +19,12 @@ class RoomModeIn(BaseModel):
     """Настройка списка активных режимов."""
 
     rules: list[str]
+
+
+class RoomDelete(BaseModel):
+    """Данные при принудительном удалении комнаты."""
+
+    rom_id: UUID
 
 
 class RoomDataIn(BaseModel):

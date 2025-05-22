@@ -1,4 +1,10 @@
-"""Работа со списком комнат."""
+"""Работа со списком комнат.
+
+- TODO: Изменение режимов игры.
+- TODO: Выбор колоды.
+- TODO: Редактор колоды.
+- TODO: Готовность игроков.
+"""
 
 import random
 from uuid import UUID
@@ -16,7 +22,7 @@ from mau.game.player import BaseUser
 from mau_server.config import sm, stm
 from mau_server.models import Room, RoomState, User
 from mau_server.schemes.db import RoomData
-from mau_server.schemes.roomlist import RoomDataIn
+from mau_server.schemes.roomlist import RoomDataIn, RoomDelete
 
 router = APIRouter(prefix="/rooms", tags=["room list"])
 
@@ -138,7 +144,7 @@ async def update_room(
 async def delete_room(
     room_id: UUID,
     user: User = Depends(stm.read_token),
-) -> dict:
+) -> dict[str, UUID]:
     """Принудительно удаляет комнату."""
     room = await Room.get_or_none(id=room_id)
     if room is None:
@@ -147,7 +153,7 @@ async def delete_room(
         raise HTTPException(401, "User is not room owner")
 
     await room.delete()
-    return {"ok": True, "room_id": room_id}
+    return RoomDelete(room_id=room_id)
 
 
 # Игровые режимы
