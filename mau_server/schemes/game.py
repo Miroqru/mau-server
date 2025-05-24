@@ -27,6 +27,7 @@ class CardData(BaseModel):
     color: CardColor
     behavior: str
     value: int
+    cost: int
 
 
 class CardDeckData(BaseModel):
@@ -121,6 +122,7 @@ def dump_card(card: MauCard) -> CardData:
         color=card.color,
         behavior=card.behavior.name,
         value=card.value,
+        cost=card.cost,
     )
 
 
